@@ -1,0 +1,9 @@
+{
+    "java.project.referencedLibraries": [
+        "c:\\Users\\dzulf\\Downloads\\mysql-connector-java-8.0.30.jar",
+        "c:\\Users\\dzulf\\Music\\Tubes OOP\\lib\\CopyLibs\\org-netbeans-modules-java-j2seproject-copylibstask.jar"
+    ],
+    "java.project.sourcePaths": [
+        "src"
+    ]
+}
