@@ -27,66 +27,123 @@ public class SolitaireDisplay extends JComponent implements MouseListener
     private int selectedCol = -1;
     private final Solitaire game;
 
-public static void main(String[] args) {
-    int xd = 620;
-    MysqlDataSource dataSource = new MysqlDataSource();
-    String dbURL = "jdbc:mysql://localhost:3306/solitaire";
-    String dbUsername = "root";
-    String dbPassword = "";
+    public static void main(String[] args) {
+        int xd = 240;
+        MysqlDataSource dataSource = new MysqlDataSource();
+        String dbURL = "jdbc:mysql://localhost:3306/solitaire";
+        String dbUsername = "root";
+        String dbPassword = "";
+        
+        dataSource.setURL(dbURL);
+        dataSource.setUser(dbUsername);
+        dataSource.setPassword(dbPassword);
     
-    dataSource.setURL(dbURL);
-    dataSource.setUser(dbUsername);
-    dataSource.setPassword(dbPassword);
+        JTextField nameField = new JTextField();
+        Object[] message = {
+            "YAY!! YOU WON!!",
+            "Anda mendapatkan skor : " +  xd,
+            "Nama Anda :", nameField
+        };
     
-    JTextField nameField = new JTextField();
-    Object[] message = {
-        "YAY!! YOU WON!!",
-        "Anda mendapatkan skor : " + xd,
-        "Nama Anda :", nameField
-    };
+        int option = JOptionPane.showConfirmDialog(null, message, "Victory!", JOptionPane.OK_CANCEL_OPTION);
+        if (option == JOptionPane.OK_OPTION) {
+            String playerName = nameField.getText().trim();
+            if (!playerName.isEmpty()) {
+                try (Connection connection = dataSource.getConnection();
+                    PreparedStatement insertStatement = connection.prepareStatement(
+                        "INSERT INTO scores (name, score) VALUES (?, ?)");
+                    PreparedStatement topScoresStatement = connection.prepareStatement(
+                        "SELECT name, score FROM scores ORDER BY score ASC LIMIT 5")) {
     
-    int option = JOptionPane.showConfirmDialog(null, message, "Victory!", JOptionPane.OK_CANCEL_OPTION);
-    if (option == JOptionPane.OK_OPTION) {
-        String playerName = nameField.getText().trim();
-        if (!playerName.isEmpty()) {
-            try (Connection connection = dataSource.getConnection();
-                PreparedStatement insertStatement = connection.prepareStatement(
-                    "INSERT INTO scores (name, score) VALUES (?, ?)");
-                PreparedStatement topScoresStatement = connection.prepareStatement(
-                    "SELECT name, score FROM scores ORDER BY score ASC LIMIT 5")) {
+                    // Insert score
+                    insertStatement.setString(1, playerName);
+                    insertStatement.setInt(2, xd);
+                    insertStatement.executeUpdate();
+                    System.out.println("Score saved! Congratulations, " + playerName + "!");
     
-                // Insert skor player
-                insertStatement.setString(1, playerName);
-                insertStatement.setInt(2, xd);
-                insertStatement.executeUpdate();
-                System.out.println("Score saved! Congratulations, " + playerName + "!");
+                    boolean exitOption = false;
+                    while (!exitOption) {
+                        // Show leaderboard
+                        StringBuilder topScoresMessage = new StringBuilder("Top 5 Scores:\n\n");
+                        try (ResultSet rs = topScoresStatement.executeQuery()) {
+                            while (rs.next()) {
+                                topScoresMessage.append(rs.getString("name"))
+                                                .append(" - ")
+                                                .append(rs.getInt("score"))
+                                                .append("\n");
+                            }
+                        }
     
-                // mengambil top 5 player
-                StringBuilder topScoresMessage = new StringBuilder("Top 5 Scores:\n\n");
-                try (ResultSet rs = topScoresStatement.executeQuery()) {
-                    while (rs.next()) {
-                        topScoresMessage.append(rs.getString("name"))
-                                        .append(" - ")
-                                        .append(rs.getInt("score"))
-                                        .append("\n");
+                        // Options for Update/Delete
+                        String[] options = {"Update", "Delete", "Exit"};
+                        int choice = JOptionPane.showOptionDialog(null, 
+                            topScoresMessage.toString() + "\nChoose an option:", 
+                            "Top 5 Scores", 
+                            JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, 
+                            null, options, options[0]);
+    
+                        switch (choice) {
+                            case 0: // Update
+                                JTextField updateNameField = new JTextField(playerName);
+                                Object[] updateMessage = {
+                                    "Update your name:", updateNameField
+                                };
+    
+                                int updateOption = JOptionPane.showConfirmDialog(null, updateMessage, "Update Name", JOptionPane.OK_CANCEL_OPTION);
+                                if (updateOption == JOptionPane.OK_OPTION) {
+                                    String updatedName = updateNameField.getText().trim();
+                                    if (!updatedName.isEmpty()) {
+                                        try (PreparedStatement updateStatement = connection.prepareStatement(
+                                            "UPDATE scores SET name = ? WHERE name = ? AND score = ?")) {
+                                            updateStatement.setString(1, updatedName);
+                                            updateStatement.setString(2, playerName);
+                                            updateStatement.setInt(3, xd);
+                                            int rowsUpdated = updateStatement.executeUpdate();
+                                            if (rowsUpdated > 0) {
+                                                System.out.println("Name updated successfully!");
+                                                playerName = updatedName; // Update local variable
+                                            } else {
+                                                System.out.println("Failed to update name.");
+                                            }
+                                        }
+                                    }
+                                }
+                                break;
+                            case 1: // Delete
+                                int confirmDelete = JOptionPane.showConfirmDialog(null, 
+                                    "Yakin gamau dimasukin skornya wak??", 
+                                    "Alamak 😋", JOptionPane.YES_NO_OPTION);
+                                if (confirmDelete == JOptionPane.YES_OPTION) {
+                                    try (PreparedStatement deleteStatement = connection.prepareStatement(
+                                        "DELETE FROM scores WHERE name = ? AND score = ?")) {
+                                        deleteStatement.setString(1, playerName);
+                                        deleteStatement.setInt(2, xd);
+                                        int rowsDeleted = deleteStatement.executeUpdate();
+                                        if (rowsDeleted > 0) {
+                                            System.out.println("Score deleted successfully!");
+                                        } else {
+                                            System.out.println("Failed to delete score.");
+                                        }
+                                    }
+                                }
+                                break;
+                            case 2: 
+                            default:
+                                exitOption = true;
+                                break;
+                        }
                     }
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                    System.out.println("Gagal Koneksi ke database");
                 }
-    
-                // Top 5 Skor
-                JOptionPane.showMessageDialog(null, topScoresMessage.toString(), "Top 5 Scores", JOptionPane.INFORMATION_MESSAGE);
-            } catch (SQLException e) {
-                e.printStackTrace();
-                System.out.println("Gagal Koneksi ke database");
+            } else {
+                System.out.println("Terimakasih Sudah Bermain");
             }
         } else {
             System.out.println("Terimakasih Sudah Bermain");
         }
-    } else {
-        System.out.println("Terimakasih Sudah Bermain");
     }
-}
-
-    
 public SolitaireDisplay(Solitaire game) {
     this.game = game;
 
@@ -125,7 +182,64 @@ public SolitaireDisplay(Solitaire game) {
         System.out.println(": " + points++);
         
 
-    if(game.celebrateTime()){
+    // if(game.celebrateTime()){
+    //     MysqlDataSource dataSource = new MysqlDataSource();
+    //     String dbURL = "jdbc:mysql://localhost:3306/solitaire";
+    //     String dbUsername = "root";
+    //     String dbPassword = "";
+        
+    //     dataSource.setURL(dbURL);
+    //     dataSource.setUser(dbUsername);
+    //     dataSource.setPassword(dbPassword);
+        
+    //     JTextField nameField = new JTextField();
+    //     Object[] message = {
+    //         "YAY!! YOU WON!!",
+    //         "Anda mendapatkan skor : " + points,
+    //         "Nama Anda :", nameField
+    //     };
+        
+    //     int option = JOptionPane.showConfirmDialog(null, message, "Victory!", JOptionPane.OK_CANCEL_OPTION);
+    //     if (option == JOptionPane.OK_OPTION) {
+    //         String playerName = nameField.getText().trim();
+    //         if (!playerName.isEmpty()) {
+    //             try (Connection connection = dataSource.getConnection();
+    //                 PreparedStatement insertStatement = connection.prepareStatement(
+    //                     "INSERT INTO scores (name, score) VALUES (?, ?)");
+    //                 PreparedStatement topScoresStatement = connection.prepareStatement(
+    //                     "SELECT name, score FROM scores ORDER BY score ASC LIMIT 5")) {
+        
+    //                 // Insert skor player
+    //                 insertStatement.setString(1, playerName);
+    //                 insertStatement.setInt(2, points);
+    //                 insertStatement.executeUpdate();
+    //                 System.out.println("Score saved! Congratulations, " + playerName + "!");
+        
+    //                 // mengambil top 5 player
+    //                 StringBuilder topScoresMessage = new StringBuilder("Top 5 Scores:\n\n");
+    //                 try (ResultSet rs = topScoresStatement.executeQuery()) {
+    //                     while (rs.next()) {
+    //                         topScoresMessage.append(rs.getString("name"))
+    //                                         .append(" - ")
+    //                                         .append(rs.getInt("score"))
+    //                                         .append("\n");
+    //                     }
+    //                 }
+        
+    //                 // Top 5 Skor
+    //                 JOptionPane.showMessageDialog(null, topScoresMessage.toString(), "Top 5 Scores", JOptionPane.INFORMATION_MESSAGE);
+    //             } catch (SQLException e) {
+    //                 e.printStackTrace();
+    //                 System.out.println("Gagal Koneksi ke database");
+    //             }
+    //         } else {
+    //             System.out.println("Terimakasih Sudah Bermain");
+    //         }
+    //     } else {
+    //         System.out.println("Terimakasih Sudah Bermain");
+    //     }
+    // }
+    if (game.celebrateTime()) {
         MysqlDataSource dataSource = new MysqlDataSource();
         String dbURL = "jdbc:mysql://localhost:3306/solitaire";
         String dbUsername = "root";
@@ -134,43 +248,99 @@ public SolitaireDisplay(Solitaire game) {
         dataSource.setURL(dbURL);
         dataSource.setUser(dbUsername);
         dataSource.setPassword(dbPassword);
-        
+
         JTextField nameField = new JTextField();
         Object[] message = {
             "YAY!! YOU WON!!",
             "Anda mendapatkan skor : " + points,
             "Nama Anda :", nameField
         };
-        
+
         int option = JOptionPane.showConfirmDialog(null, message, "Victory!", JOptionPane.OK_CANCEL_OPTION);
         if (option == JOptionPane.OK_OPTION) {
             String playerName = nameField.getText().trim();
             if (!playerName.isEmpty()) {
                 try (Connection connection = dataSource.getConnection();
-                    PreparedStatement insertStatement = connection.prepareStatement(
+                        PreparedStatement insertStatement = connection.prepareStatement(
                         "INSERT INTO scores (name, score) VALUES (?, ?)");
-                    PreparedStatement topScoresStatement = connection.prepareStatement(
+                        PreparedStatement topScoresStatement = connection.prepareStatement(
                         "SELECT name, score FROM scores ORDER BY score ASC LIMIT 5")) {
-        
-                    // Insert skor player
+
                     insertStatement.setString(1, playerName);
                     insertStatement.setInt(2, points);
                     insertStatement.executeUpdate();
                     System.out.println("Score saved! Congratulations, " + playerName + "!");
-        
-                    // mengambil top 5 player
-                    StringBuilder topScoresMessage = new StringBuilder("Top 5 Scores:\n\n");
-                    try (ResultSet rs = topScoresStatement.executeQuery()) {
-                        while (rs.next()) {
-                            topScoresMessage.append(rs.getString("name"))
-                                            .append(" - ")
-                                            .append(rs.getInt("score"))
-                                            .append("\n");
+
+                    boolean exitOption = false;
+                    while (!exitOption) {
+                        StringBuilder topScoresMessage = new StringBuilder("Top 5 Scores:\n\n");
+                        try (ResultSet rs = topScoresStatement.executeQuery()) {
+                            while (rs.next()) {
+                                topScoresMessage.append(rs.getString("name"))
+                                                .append(" - ")
+                                                .append(rs.getInt("score"))
+                                                .append("\n");
+                            }
+                        }
+
+                        String[] options = {"Update", "Delete", "Exit"};
+                        int choice = JOptionPane.showOptionDialog(null, 
+                            topScoresMessage.toString() + "\nChoose an option:", 
+                            "Top 5 Scores", 
+                            JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, 
+                            null, options, options[0]);
+
+                        switch (choice) {
+                            case 0:
+                                JTextField updateNameField = new JTextField(playerName);
+                                Object[] updateMessage = {
+                                    "Ganti nama wak?:", updateNameField
+                                };
+
+                                int updateOption = JOptionPane.showConfirmDialog(null, updateMessage, "Update Name", JOptionPane.OK_CANCEL_OPTION);
+                                if (updateOption == JOptionPane.OK_OPTION) {
+                                    String updatedName = updateNameField.getText().trim();
+                                    if (!updatedName.isEmpty()) {
+                                        try (PreparedStatement updateStatement = connection.prepareStatement(
+                                            "UPDATE scores SET name = ? WHERE name = ? AND score = ?")) {
+                                            updateStatement.setString(1, updatedName);
+                                            updateStatement.setString(2, playerName);
+                                            updateStatement.setInt(3, points);
+                                            int rowsUpdated = updateStatement.executeUpdate();
+                                            if (rowsUpdated > 0) {
+                                                System.out.println("Berhasil diganti");
+                                                playerName = updatedName; // Update local variable
+                                            } else {
+                                                System.out.println("Gagal mengganti");
+                                            }
+                                        }
+                                    }
+                                }
+                                break;
+                            case 1:
+                                int confirmDelete = JOptionPane.showConfirmDialog(null, 
+                                    "Yakin gamau dimasukin skornya wak??", 
+                                    "Delete Score", JOptionPane.YES_NO_OPTION);
+                                if (confirmDelete == JOptionPane.YES_OPTION) {
+                                    try (PreparedStatement deleteStatement = connection.prepareStatement(
+                                        "DELETE FROM scores WHERE name = ? AND score = ?")) {
+                                        deleteStatement.setString(1, playerName);
+                                        deleteStatement.setInt(2, points);
+                                        int rowsDeleted = deleteStatement.executeUpdate();
+                                        if (rowsDeleted > 0) {
+                                            System.out.println("Data berhasil dihapus!");
+                                        } else {
+                                            System.out.println("Gagal menghapus data");
+                                        }
+                                    }
+                                }
+                                break;
+                            case 2:
+                            default:
+                                exitOption = true;
+                                break;
                         }
                     }
-        
-                    // Top 5 Skor
-                    JOptionPane.showMessageDialog(null, topScoresMessage.toString(), "Top 5 Scores", JOptionPane.INFORMATION_MESSAGE);
                 } catch (SQLException e) {
                     e.printStackTrace();
                     System.out.println("Gagal Koneksi ke database");
@@ -182,7 +352,6 @@ public SolitaireDisplay(Solitaire game) {
             System.out.println("Terimakasih Sudah Bermain");
         }
     }
-
         
         drawCard(g, game.getStockCard(), SPACING, SPACING);
 
